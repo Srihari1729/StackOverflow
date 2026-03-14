@@ -4,9 +4,10 @@ import { CardFace } from './CardFace';
 interface SeatProps {
   seat: SeatState;
   isViewer: boolean;
+  isActing: boolean;
 }
 
-export function Seat({ seat, isViewer }: SeatProps) {
+export function Seat({ seat, isViewer, isActing }: SeatProps) {
   const badges = [
     seat.is_dealer ? 'D' : null,
     seat.is_small_blind ? 'SB' : null,
@@ -14,7 +15,7 @@ export function Seat({ seat, isViewer }: SeatProps) {
   ].filter(Boolean);
 
   return (
-    <article className={`seat seat-${seat.status}`}>
+    <article className={`seat seat-${seat.status} ${isActing ? 'seat-turn' : ''}`}>
       <div className="seat-topline">
         <div className="seat-avatar" aria-hidden="true" style={{ background: seat.avatar_tone }}>
           {seat.avatar_seed}
@@ -33,6 +34,7 @@ export function Seat({ seat, isViewer }: SeatProps) {
                 {badge}
               </span>
             ))}
+            {isActing ? <span className="seat-pill acting-pill">Acting</span> : null}
           </div>
           <p className="muted">
             ${seat.stack} {seat.current_bet > 0 ? `· Bet ${seat.current_bet}` : ''}

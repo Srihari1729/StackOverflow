@@ -199,13 +199,26 @@ h3 {
   color: var(--color-text);
 }
 
+.danger-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 18px;
+  cursor: pointer;
+  transition: transform 140ms ease, opacity 140ms ease, background 140ms ease;
+  background: rgba(209, 87, 87, 0.16);
+  color: #ffb6b6;
+}
+
 .primary-button:hover,
-.secondary-button:hover {
+.secondary-button:hover,
+.danger-button:hover {
   transform: translateY(-1px);
 }
 
 .primary-button:disabled,
-.secondary-button:disabled {
+.secondary-button:disabled,
+.danger-button:disabled,
+.chip-button:disabled {
   cursor: default;
   opacity: 0.6;
   transform: none;
@@ -260,6 +273,11 @@ h3 {
   outline: 1px solid rgba(216, 182, 110, 0.64);
 }
 
+.seat-turn {
+  outline: 1px solid rgba(216, 182, 110, 0.78);
+  box-shadow: 0 0 0 1px rgba(216, 182, 110, 0.18), var(--shadow-soft);
+}
+
 .seat-folded {
   opacity: 0.68;
 }
@@ -294,6 +312,11 @@ h3 {
 
 .role-pill {
   color: var(--color-text);
+}
+
+.acting-pill {
+  color: #111;
+  background: var(--color-accent);
 }
 
 .seat-avatar {
@@ -348,17 +371,32 @@ h3 {
   padding: 20px;
 }
 
-.action-controls {
+.action-panel {
+  align-items: stretch;
+  gap: 24px;
+}
+
+.action-summary {
+  min-width: 220px;
+}
+
+.action-strip {
+  flex: 1;
+  display: grid;
+  gap: 14px;
+}
+
+.action-primary-group {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  align-items: center;
 }
 
 .raise-block {
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .raise-block input {
@@ -368,6 +406,35 @@ h3 {
   background: rgba(255, 255, 255, 0.04);
   color: var(--color-text);
   padding: 12px 14px;
+}
+
+.raise-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.raise-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.chip-button {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text);
+  border-radius: 999px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.raise-label {
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.large-button {
+  padding-inline: 22px;
 }
 
 .table-meta {
@@ -445,5 +512,11 @@ h3 {
   .history-item {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .action-primary-group,
+  .raise-presets,
+  .raise-block {
+    width: 100%;
   }
 }

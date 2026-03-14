@@ -75,7 +75,7 @@ function App() {
       }
     };
     void poll();
-    const interval = window.setInterval(poll, 1500);
+    const interval = window.setInterval(poll, 700);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
@@ -108,8 +108,14 @@ function App() {
     try {
       const activeSessionId = await ensureSession();
       const room = await createRoom(activeSessionId, config);
-      await refreshRoom(room.room_code, activeSessionId);
-      setStatusMessage(`Created room ${room.room_code}. Start a hand when ready.`);
+      if (config.botCount > 0) {
+        await startHand(room.room_code, activeSessionId);
+        await refreshRoom(room.room_code, activeSessionId);
+        setStatusMessage(`Created room ${room.room_code}. Your first hand is live.`);
+      } else {
+        await refreshRoom(room.room_code, activeSessionId);
+        setStatusMessage(`Created room ${room.room_code}. Add players or start when ready.`);
+      }
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : 'Failed to create room');
     } finally {
@@ -155,7 +161,8 @@ function App() {
     setIsBusy(true);
     try {
       const activeSessionId = await ensureSession();
-      await sendAction(currentRoomCode, activeSessionId, action, action === 'raise' || action === 'all_in' ? raiseAmount : 0);
+      const actionAmount = action === 'raise' ? minRaiseAmount : action === 'all_in' ? maxRaiseTo : 0;
+      await sendAction(currentRoomCode, activeSessionId, action, actionAmount);
       await refreshRoom(currentRoomCode, activeSessionId);
       setStatusMessage(`Submitted ${action}`);
     } catch (error) {
@@ -169,6 +176,42 @@ function App() {
   const legalActions = roomView?.legal_actions ?? [];
   const isHost = !!room && room.host_session_id === sessionId;
   const viewerName = displayName || 'Player';
+  const actingSeat = room?.hand_state?.acting_seat != null ? room.seats[room.hand_state.acting_seat] : null;
+  const viewerSeat = room?.seats.find((seat) => seat.occupant_id === sessionId) ?? null;
+  const isViewerTurn = !!actingSeat && actingSeat.occupant_id === sessionId;
+  const toCall = room?.hand_state && viewerSeat ? Math.max(0, room.hand_state.current_bet - viewerSeat.current_bet) : 0;
+  const minRaiseTo = room?.hand_state?.min_raise_to ?? 0;
+  const maxRaiseTo = viewerSeat ? viewerSeat.current_bet + viewerSeat.stack : 0;
+  const minRaiseAmount = minRaiseTo > 0 ? Math.min(Math.max(minRaiseTo, raiseAmount), maxRaiseTo || minRaiseTo) : raiseAmount;
+
+  useEffect(() => {
+    if (!room) {
+      return;
+    }
+    if (room.status === 'hand_over' && room.hand_state?.winner_text) {
+      setStatusMessage(room.hand_state.winner_text);
+      return;
+    }
+    if (actingSeat?.occupant_id === sessionId) {
+      setStatusMessage(toCall > 0 ? `Your turn. Call ${toCall}, fold, or raise.` : 'Your turn. Check or bet.');
+      return;
+    }
+    if (actingSeat?.occupant_name) {
+      setStatusMessage(`${actingSeat.occupant_name} is acting.`);
+      return;
+    }
+    if (room.status === 'lobby') {
+      setStatusMessage('Room ready. Start a hand when you want to play.');
+    }
+  }, [room, actingSeat, sessionId, toCall]);
+
+  function applyRaisePreset(target: number) {
+    if (!room || !viewerSeat) {
+      return;
+    }
+    const clamped = Math.max(minRaiseTo, Math.min(target, viewerSeat.current_bet + viewerSeat.stack));
+    setRaiseAmount(clamped);
+  }
 
   return (
     <div className="app-shell">
@@ -355,63 +398,113 @@ function App() {
 
           <div className="seat-grid">
             {(room?.seats ?? []).map((seat) => (
-              <Seat key={`${seat.seat_index}-${seat.occupant_id ?? 'open'}`} seat={seat} isViewer={seat.occupant_id === sessionId} />
+              <Seat
+                key={`${seat.seat_index}-${seat.occupant_id ?? 'open'}`}
+                seat={seat}
+                isViewer={seat.occupant_id === sessionId}
+                isActing={room?.hand_state?.acting_seat === seat.seat_index}
+              />
             ))}
           </div>
 
-          <footer className="action-bar">
-            <div>
+          <footer className="action-bar action-panel">
+            <div className="action-summary">
               <p className="eyebrow">Action</p>
               <h2>
                 {room?.hand_state?.completed
                   ? room.hand_state.winner_text || 'Hand complete'
-                  : room?.hand_state?.acting_seat != null
-                    ? `Seat ${room.hand_state.acting_seat + 1} acting`
-                    : 'Waiting for hand'}
+                  : isViewerTurn
+                    ? 'Your move'
+                    : actingSeat?.occupant_name
+                      ? `${actingSeat.occupant_name} is acting`
+                      : 'Waiting for hand'}
               </h2>
+              <p className="muted">
+                {room?.hand_state
+                  ? `Street: ${room.hand_state.street} · Pot ${room.hand_state.pot_total}`
+                  : 'Create a room and play locally with bots.'}
+              </p>
             </div>
 
-            <div className="action-controls">
+            <div className="action-strip">
               {(room?.status === 'lobby' || room?.status === 'hand_over') && isHost ? (
-                <button className="primary-button" onClick={handleStartHand} disabled={isBusy}>
-                  {room?.status === 'hand_over' ? 'Next hand' : 'Start hand'}
+                <button className="primary-button large-button" onClick={handleStartHand} disabled={isBusy}>
+                  {room?.status === 'hand_over' ? 'Deal next hand' : 'Deal first hand'}
                 </button>
               ) : null}
 
-              {legalActions.includes('fold') ? (
-                <button className="secondary-button" onClick={() => handleAction('fold')} disabled={isBusy}>
-                  Fold
-                </button>
-              ) : null}
-              {legalActions.includes('check') ? (
-                <button className="secondary-button" onClick={() => handleAction('check')} disabled={isBusy}>
-                  Check
-                </button>
-              ) : null}
-              {legalActions.includes('call') ? (
-                <button className="secondary-button" onClick={() => handleAction('call')} disabled={isBusy}>
-                  Call
-                </button>
-              ) : null}
-              {(legalActions.includes('raise') || legalActions.includes('all_in')) && room?.hand_state ? (
-                <div className="raise-block">
-                  <input
-                    type="number"
-                    value={raiseAmount}
-                    min={room.hand_state.min_raise_to || room.config.big_blind}
-                    onChange={(event) => setRaiseAmount(Number(event.target.value))}
-                  />
-                  {legalActions.includes('raise') ? (
-                    <button className="primary-button" onClick={() => handleAction('raise')} disabled={isBusy}>
-                      Raise
-                    </button>
+              {room?.hand_state && isViewerTurn ? (
+                <>
+                  <div className="action-primary-group">
+                    {legalActions.includes('fold') ? (
+                      <button className="danger-button" onClick={() => handleAction('fold')} disabled={isBusy}>
+                        Fold
+                      </button>
+                    ) : null}
+                    {legalActions.includes('check') ? (
+                      <button className="secondary-button large-button" onClick={() => handleAction('check')} disabled={isBusy}>
+                        Check
+                      </button>
+                    ) : null}
+                    {legalActions.includes('call') ? (
+                      <button className="primary-button large-button" onClick={() => handleAction('call')} disabled={isBusy}>
+                        Call ${toCall}
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {(legalActions.includes('raise') || legalActions.includes('all_in')) && viewerSeat ? (
+                    <div className="raise-panel">
+                      <div className="raise-presets">
+                        <button
+                          className="chip-button"
+                          onClick={() => applyRaisePreset(minRaiseTo)}
+                          disabled={isBusy}
+                        >
+                          Min {minRaiseTo}
+                        </button>
+                        <button
+                          className="chip-button"
+                          onClick={() => applyRaisePreset((room.hand_state?.pot_total ?? 0) + (room.hand_state?.current_bet ?? 0))}
+                          disabled={isBusy}
+                        >
+                          Pot
+                        </button>
+                        <button
+                          className="chip-button"
+                          onClick={() => applyRaisePreset(maxRaiseTo)}
+                          disabled={isBusy}
+                        >
+                          All-in
+                        </button>
+                      </div>
+
+                      <div className="raise-block">
+                        <label className="raise-label" htmlFor="raise-amount">
+                          Raise to
+                        </label>
+                        <input
+                          id="raise-amount"
+                          type="number"
+                          value={minRaiseAmount}
+                          min={minRaiseTo || room.config.big_blind}
+                          max={maxRaiseTo || undefined}
+                          onChange={(event) => setRaiseAmount(Number(event.target.value))}
+                        />
+                        {legalActions.includes('raise') ? (
+                          <button className="primary-button" onClick={() => handleAction('raise')} disabled={isBusy}>
+                            Raise to ${minRaiseAmount}
+                          </button>
+                        ) : null}
+                        {legalActions.includes('all_in') ? (
+                          <button className="secondary-button" onClick={() => handleAction('all_in')} disabled={isBusy}>
+                            Shove ${maxRaiseTo}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
                   ) : null}
-                  {legalActions.includes('all_in') ? (
-                    <button className="secondary-button" onClick={() => handleAction('all_in')} disabled={isBusy}>
-                      All-in
-                    </button>
-                  ) : null}
-                </div>
+                </>
               ) : null}
             </div>
           </footer>
