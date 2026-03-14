@@ -1,0 +1,9 @@
+{
+  "type": "table.state",
+  "roomCode": "AB12CD",
+  "version": 1,
+  "table": {
+    "status": "lobby",
+    "players": []
+  }
+}
