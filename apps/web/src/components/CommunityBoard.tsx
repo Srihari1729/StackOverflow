@@ -1,22 +1,31 @@
+import type { HandState, RoomStatus } from '../types';
 import { CardFace } from './CardFace';
 
-const boardCards = ['Q♣', 'J♥', '9♦', '3♠', '3♣'];
+interface CommunityBoardProps {
+  handState: HandState | null;
+  roomStatus: RoomStatus;
+}
 
-export function CommunityBoard() {
+export function CommunityBoard({ handState, roomStatus }: CommunityBoardProps) {
+  const boardCards = handState?.board ?? [];
+  const streetLabel = handState?.street ?? roomStatus;
+
   return (
     <section className="board-panel">
       <div className="board-copy">
-        <p className="eyebrow">Hand in progress</p>
-        <h2>River. Pot 540.</h2>
+        <p className="eyebrow">Table state</p>
+        <h2>
+          {streetLabel.toUpperCase()}. Pot {handState?.pot_total ?? 0}.
+        </h2>
         <p className="muted">
-          Clean, deliberate table state with the acting player centered in the flow.
+          {handState?.winner_text || 'Local-first table flow with authoritative backend state and hidden cards.'}
         </p>
       </div>
 
       <div className="board-cards" aria-label="Community cards">
-        {boardCards.map((card) => (
-          <CardFace key={card} value={card} />
-        ))}
+        {boardCards.length === 0
+          ? Array.from({ length: 5 }).map((_, index) => <CardFace key={index} value="XX" hidden />)
+          : boardCards.map((card) => <CardFace key={card} value={card} />)}
       </div>
     </section>
   );

@@ -1,20 +1,16 @@
-import type { DeckStyle, Difficulty } from '../types';
+import type { DeckStyle } from '../types';
 
 interface SettingsPanelProps {
   deckStyle: DeckStyle;
-  difficulty: Difficulty;
   reducedMotion: boolean;
   onDeckStyleChange: (value: DeckStyle) => void;
-  onDifficultyChange: (value: Difficulty) => void;
   onReducedMotionChange: (value: boolean) => void;
 }
 
 export function SettingsPanel({
   deckStyle,
-  difficulty,
   reducedMotion,
   onDeckStyleChange,
-  onDifficultyChange,
   onReducedMotionChange,
 }: SettingsPanelProps) {
   return (
@@ -31,19 +27,6 @@ export function SettingsPanel({
         >
           <option value="four_color">Four-color deck</option>
           <option value="standard">Standard red/black</option>
-        </select>
-      </div>
-
-      <div className="setting-group">
-        <label htmlFor="difficulty">Bot difficulty</label>
-        <select
-          id="difficulty"
-          value={difficulty}
-          onChange={(event) => onDifficultyChange(event.target.value as Difficulty)}
-        >
-          <option value="easy">Easy</option>
-          <option value="medium">Medium</option>
-          <option value="hard">Hard</option>
         </select>
       </div>
 

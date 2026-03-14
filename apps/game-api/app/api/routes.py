@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from app.domain.poker.models import RoomConfig, RoomState
+from app.domain.poker.models import ActionType, RoomConfig, RoomState
 from app.services.mock_auth_service import MockAuthService
 from app.services.room_service import RoomService
 
@@ -30,6 +30,17 @@ class JoinRoomRequest(BaseModel):
     room_code: str
 
 
+class PlayerActionRequest(BaseModel):
+    session_id: str
+    action: ActionType
+    amount: int = 0
+
+
+class RoomViewResponse(BaseModel):
+    room: RoomState
+    legal_actions: List[ActionType]
+
+
 def register_routes(app: FastAPI, auth_service: MockAuthService, room_service: RoomService) -> None:
     router = APIRouter()
 
@@ -51,11 +62,7 @@ def register_routes(app: FastAPI, auth_service: MockAuthService, room_service: R
         session = auth_service.get_session(payload.session_id)
         if session is None:
             raise HTTPException(status_code=404, detail="Unknown session")
-        return room_service.create_room(
-            host_session_id=session.session_id,
-            host_name=session.display_name,
-            config=payload.config,
-        )
+        return room_service.create_room(host_session_id=session.session_id, host_name=session.display_name, config=payload.config)
 
     @router.post("/rooms/join", response_model=RoomState)
     async def join_room(payload: JoinRoomRequest) -> RoomState:
@@ -70,33 +77,52 @@ def register_routes(app: FastAPI, auth_service: MockAuthService, room_service: R
         except ValueError as error:
             raise HTTPException(status_code=409, detail=str(error)) from error
 
-    @router.get("/rooms/{room_code}", response_model=RoomState)
-    async def get_room(room_code: str) -> RoomState:
+    @router.post("/rooms/{room_code}/start", response_model=RoomState)
+    async def start_hand(room_code: str, session_id: str = Query(...)) -> RoomState:
+        try:
+            return room_service.start_hand(room_code, session_id)
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @router.post("/rooms/{room_code}/actions", response_model=RoomState)
+    async def player_action(room_code: str, payload: PlayerActionRequest) -> RoomState:
+        try:
+            return room_service.apply_player_action(room_code, payload.session_id, payload.action, payload.amount)
+        except ValueError as error:
+            raise HTTPException(status_code=409, detail=str(error)) from error
+
+    @router.get("/rooms/{room_code}", response_model=RoomViewResponse)
+    async def get_room(room_code: str, session_id: Optional[str] = None) -> RoomViewResponse:
         room = room_service.get_room(room_code)
         if room is None:
             raise HTTPException(status_code=404, detail="Room not found")
-        return room
+        return RoomViewResponse(
+            room=room_service.get_room_view(room_code, viewer_session_id=session_id),
+            legal_actions=room_service.legal_actions_for_session(room_code, session_id or ""),
+        )
 
     app.include_router(router, prefix="/api")
 
     @app.websocket("/ws/rooms/{room_code}")
     async def room_stream(websocket: WebSocket, room_code: str) -> None:
         await websocket.accept()
+        session_id = websocket.query_params.get("session_id")
         try:
             while True:
                 room = room_service.get_room(room_code)
                 if room is None:
                     await websocket.send_json({"type": "room.missing", "roomCode": room_code})
                     break
-
+                view = room_service.get_room_view(room_code, viewer_session_id=session_id)
                 await websocket.send_json(
                     {
                         "type": "table.state",
                         "roomCode": room_code,
-                        "version": room.version,
-                        "table": room.model_dump(mode="json"),
+                        "version": view.version,
+                        "room": view.model_dump(mode="json"),
+                        "legalActions": [action.value for action in room_service.legal_actions_for_session(room_code, session_id or "")],
                     }
                 )
-                await asyncio.sleep(2)
+                await asyncio.sleep(1)
         except WebSocketDisconnect:
             return

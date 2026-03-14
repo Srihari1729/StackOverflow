@@ -4,15 +4,15 @@ A modern, minimal Texas Hold'em web app built for local-first play, mocked multi
 
 ## Current implementation status
 
-This repository now contains the initial production-oriented scaffold:
+This repository now contains a working local-first gameplay slice:
 
-- `apps/web`: React + Vite frontend with a premium poker UI shell
-- `apps/game-api`: FastAPI backend with mock auth, room APIs, and a deterministic poker engine skeleton
+- `apps/web`: React + Vite frontend with live room creation, join flow, table state polling, and playable action controls
+- `apps/game-api`: FastAPI backend with mock auth, room APIs, a deterministic poker engine, and bot automation
 - `packages/contracts`: shared API examples and generated-contract placeholder
 - `packages/design-tokens`: shared visual tokens
 - `docs`: architecture and migration notes
 
-The current version is an implementation foundation, not a finished game. It is structured so the poker engine, bot engine, and UI can be extended without rewrites.
+The current version supports a real local room lifecycle and playable single-table Hold'em hands with bots. It is still offline-first and intentionally local, but it is no longer just a UI scaffold.
 
 ## Stack
 
@@ -79,21 +79,27 @@ Frontend runs on `http://localhost:5173` by default. Backend runs on `http://127
 
 ## What exists today
 
-- Local profile creation UI shell
-- Room create/join UI shell
-- Premium table layout shell with seats, board, action bar, and settings panel
+- Local mock session bootstrap
+- Room create/join flow with configurable seats, bots, blinds, and starting stack
+- Premium table UI driven by live backend room state
+- Start hand / next hand flow
+- Legal-action aware controls for fold, check, call, raise, and all-in
+- Deterministic shuffle/deal, blind posting, turn order, street advancement, showdown, and pot settlement
+- Difficulty-based bots with lightweight opponent-memory updates
+- Hidden bot hole cards in player-facing room views until showdown
+- Hand history panel and winner summaries
 - Backend health check
 - Mock session API
-- Room create/join/list APIs
+- Room create/join/get/start/action APIs
 - WebSocket room stream scaffold
-- Deterministic card/deck helpers and hand state models
+- Deterministic card/deck helpers and hand evaluator
 
 ## What to build next
 
-1. Complete the reducer-driven poker engine
-2. Add bot decision policies and opponent memory
-3. Wire the frontend to the WebSocket room state stream
-4. Persist profiles, preferences, and hand history
+1. Replace polling with WebSocket-driven room updates
+2. Expand opponent modeling and bot strategy depth
+3. Add persistence for local profiles, room history, and preferences
+4. Improve reconnect handling and multi-human tab flows
 5. Add Firebase-backed auth and room metadata
 
 ## Offline mode
